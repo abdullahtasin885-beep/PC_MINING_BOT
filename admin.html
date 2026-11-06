@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 p-4 min-h-screen">
+
+  <div id="adminAuthLock" class="fixed inset-0 bg-slate-950 flex flex-col justify-center items-center text-center p-4">
+    <p class="text-red-400 font-bold mb-2">অনুমোদন নেই!</p>
+    <p class="text-xs text-slate-500">শুধুমাত্র এডমিন এই পেজে ঢুকতে পারবে।</p>
+  </div>
+
+  <div id="adminContent" class="hidden max-w-xl mx-auto space-y-6">
+    <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+      <h1 class="text-xl font-bold text-amber-400">এডমিন কন্ট্রোল প্যানেল</h1>
+      <a href="index.html" class="text-xs bg-slate-800 px-3 py-1.5 rounded-lg text-slate-300">মিনি অ্যাপে ফিরুন</a>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
+        <p class="text-xs text-slate-400">মোট ইউজার</p>
+        <p class="text-2xl font-bold text-amber-400" id="statUsers">0</p>
+      </div>
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-center">
+        <p class="text-xs text-slate-400">পেন্ডিং উইথড্র</p>
+        <p class="text-2xl font-bold text-emerald-400" id="statPending">0</p>
+      </div>
+    </div>
+
+    <!-- Pending Withdrawals -->
+    <div>
+      <h2 class="text-md font-bold mb-3">পেন্ডিং উইথড্র রিকোয়েস্টসমূহ</h2>
+      <div id="withdrawList" class="space-y-3">
+        <p class="text-xs text-slate-500">লোড হচ্ছে...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBUJX_rEN888u9pCrSe9QBDcM2neSkUFiI",
+      authDomain: "pc-mining-f0dc9.firebaseapp.com",
+      projectId: "pc-mining-f0dc9",
+      storageBucket: "pc-mining-f0dc9.firebasestorage.app",
+      messagingSenderId: "973506100658",
+      appId: "1:973506100658:web:e158b0371a781c33f4f8ab"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const ADMIN_TELEGRAM_ID = "8045367594";
+    const tg = window.Telegram?.WebApp;
+    const currentUserId = tg?.initDataUnsafe?.user?.id?.toString() || new URLSearchParams(window.location.search).get('id');
+
+    if (currentUserId === ADMIN_TELEGRAM_ID) {
+      document.getElementById('adminAuthLock').classList.add('hidden');
+      document.getElementById('adminContent').classList.remove('hidden');
+      loadAdminData();
+    }
+
+    async function loadAdminData() {
+      // মোট ইউজার সংখ্যা
+      const usersSnap = await db.collection('users').get();
+      document.getElementById('statUsers').innerText = usersSnap.size;
+
+      // পেন্ডিং উইথড্র রিকোয়েস্ট
+      db.collection('withdrawals').where('status', '==', 'pending').onSnapshot(snap => {
+        document.getElementById('statPending').innerText = snap.size;
+        const listDiv = document.getElementById('withdrawList');
+        listDiv.innerHTML = '';
+
+        if (snap.empty) {
+          listDiv.innerHTML = '<p class="text-xs text-slate-500">কোনো পেন্ডিং উইথড্র নেই।</p>';
+          return;
+        }
+
+        snap.forEach(doc => {
+          const w = doc.data();
+          const card = document.createElement('div');
+          card.className = "bg-slate-900 border border-slate-800 p-4 rounded-xl flex justify-between items-center";
+          card.innerHTML = `
+            <div>
+              <p class="text-sm font-bold">${w.name} (ID: ${w.userId})</p>
+              <p class="text-xs text-amber-400 font-bold">${w.amount} ⭐️ Stars</p>
+              <p class="text-xs text-slate-400 font-mono mt-1">${w.address}</p>
+            </div>
+            <div class="flex space-x-2">
+              <button onclick="approveWithdraw('${doc.id}')" class="bg-emerald-500 text-slate-950 px-3 py-1.5 rounded-lg text-xs font-bold">Approve</button>
+            </div>
+          `;
+          listDiv.appendChild(card);
+        });
+      });
+    }
+
+    async function approveWithdraw(id) {
+      await db.collection('withdrawals').doc(id).update({ status: 'approved' });
+      alert("উইথড্র রিকোয়েস্ট অনুমোদিত হয়েছে!");
+    }
+  </script>
+</body>
+</html>
