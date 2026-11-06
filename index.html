@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Telegram Stars Mining App</title>
+  <!-- Telegram Web App SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDKs (Compat version for zero-setup in vanilla HTML) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; }
+    .star-glow { text-shadow: 0 0 15px #facc15; }
+    .active-nav { color: #facc15; }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between pb-20 select-none">
+
+  <!-- ================= FORCE JOIN LOCK SCREEN ================= -->
+  <div id="lockScreen" class="fixed inset-0 bg-slate-950 z-50 flex flex-col justify-center items-center p-6 text-center">
+    <div class="w-16 h-16 bg-amber-500/20 rounded-full flex items-center justify-center text-amber-400 text-3xl mb-4 animate-bounce">
+      <i class="fa-solid fa-lock"></i>
+    </div>
+    <h2 class="text-2xl font-bold mb-2">চ্যানেলে জয়েন করুন</h2>
+    <p class="text-sm text-slate-400 mb-6 leading-relaxed">
+      মিনি অ্যাপ এবং রেফারেল আনলক করতে নিচের স্পন্সর চ্যানেলগুলোতে অবশ্যই জয়েন করতে হবে।
+    </p>
+
+    <!-- Channels List -->
+    <div class="w-full space-y-3 mb-6" id="forceChannelList">
+      <!-- ডিফল্ট চ্যানেল লিংক (পরে পরিবর্তন করতে পারবেন) -->
+      <a href="https://t.me/telegram" target="_blank" class="flex items-center justify-between bg-slate-900 border border-slate-800 p-3.5 rounded-xl hover:border-amber-400">
+        <span class="font-medium"><i class="fa-brands fa-telegram text-sky-400 mr-2"></i> Official Channel</span>
+        <span class="text-xs bg-sky-500/20 text-sky-400 px-3 py-1 rounded-full">Join</span>
+      </a>
+    </div>
+
+    <button onclick="verifyForceJoin()" class="w-full bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold py-3.5 rounded-xl shadow-lg active:scale-95 transition">
+      <i class="fa-solid fa-check-double mr-2"></i> জয়েন করেছি, আনলক করুন
+    </button>
+  </div>
+
+  <!-- ================= TOP HEADER ================= -->
+  <header class="p-4 bg-slate-900/60 backdrop-blur border-b border-slate-800 flex justify-between items-center">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold" id="userAvatar">
+        <i class="fa-solid fa-user"></i>
+      </div>
+      <div>
+        <p class="font-bold text-sm" id="userName">User</p>
+        <p class="text-xs text-slate-400" id="userTelegramId">ID: Loading...</p>
+      </div>
+    </div>
+    <!-- Admin Button (শুধুমাত্র আপনার আইডিতে দেখা যাবে) -->
+    <a href="admin.html" id="adminShortcut" class="hidden bg-red-600/20 border border-red-500/40 text-red-400 text-xs px-3 py-1.5 rounded-lg font-bold">
+      <i class="fa-solid fa-shield-halved mr-1"></i> Admin
+    </a>
+  </header>
+
+  <!-- ================= MAIN CONTENT PAGES ================= -->
+  <main class="p-4 flex-grow">
+
+    <!-- PAGE 1: HOME & MINING -->
+    <section id="pageHome" class="space-y-4">
+      <!-- Balance Card -->
+      <div class="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700/60 rounded-2xl p-6 text-center shadow-xl">
+        <p class="text-xs uppercase tracking-wider text-slate-400 mb-1">মোট ব্যালেন্স</p>
+        <div class="flex items-center justify-center space-x-2 my-2">
+          <span class="text-4xl font-extrabold text-amber-400 star-glow" id="starBalance">0.00</span>
+          <span class="text-2xl">⭐️</span>
+        </div>
+        <p class="text-xs text-emerald-400"><i class="fa-solid fa-bolt mr-1"></i> Stars Earning Live</p>
+      </div>
+
+      <!-- Mining Button -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center">
+        <h3 class="font-bold text-lg mb-1">স্টার মাইনিং (Daily Claim)</h3>
+        <p class="text-xs text-slate-400 mb-6">প্রতি ২৪ ঘণ্টায় একবার ফ্রি স্টার ক্লেইম করুন।</p>
+        <button id="claimBtn" onclick="claimDailyStars()" class="w-full py-4 rounded-xl font-extrabold bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 shadow-lg active:scale-95 transition">
+          <i class="fa-solid fa-meteor mr-2"></i> +১.০০ Star ক্লেইম করুন
+        </button>
+        <p id="claimTimer" class="text-xs text-amber-400/80 mt-3 hidden font-mono"></p>
+      </div>
+    </section>
+
+    <!-- PAGE 2: TASKS -->
+    <section id="pageTasks" class="hidden space-y-3">
+      <h3 class="font-bold text-lg mb-2">উপলব্ধ টাস্কসমূহ</h3>
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center justify-between">
+        <div>
+          <p class="font-bold text-sm">Join Backup Channel</p>
+          <p class="text-xs text-amber-400">+০.৫০ ⭐️ Stars</p>
+        </div>
+        <button onclick="window.open('https://t.me/telegram','_blank')" class="bg-amber-400 text-slate-950 text-xs px-3.5 py-2 rounded-lg font-bold">Join</button>
+      </div>
+    </section>
+
+    <!-- PAGE 3: REFERRAL -->
+    <section id="pageReferral" class="hidden space-y-4">
+      <div class="bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border border-amber-500/30 rounded-2xl p-5 text-center">
+        <h3 class="font-bold text-xl text-amber-400 mb-1">রেফার করুন ও আয় করুন</h3>
+        <p class="text-xs text-slate-300 mb-2">প্রতি ভেরিফাইড রেফারে পাবেন <span class="font-bold text-amber-300">১.০০ ⭐️ Star</span></p>
+        <p class="text-[11px] text-red-400">* বন্ধুকে অবশ্যই চ্যানেলে জয়েন করে আনলক করতে হবে</p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+        <div class="flex justify-between text-sm">
+          <span class="text-slate-400">মোট রেফারেল:</span>
+          <span class="font-bold" id="totalReferrals">0 জন</span>
+        </div>
+        <div>
+          <p class="text-xs text-slate-400 mb-1">আপনার ইউনিক রেফারেল লিংক:</p>
+          <div class="flex space-x-2">
+            <input type="text" id="refLinkInput" readonly class="w-full bg-slate-800 border border-slate-700 text-xs p-2.5 rounded-lg text-slate-300 focus:outline-none">
+            <button onclick="copyRefLink()" class="bg-amber-400 text-slate-950 text-xs px-3.5 rounded-lg font-bold">কপি</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PAGE 4: WITHDRAW -->
+    <section id="pageWithdraw" class="hidden space-y-4">
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl space-y-4">
+        <h3 class="font-bold text-lg">স্টার উইথড্র রিকোয়েস্ট</h3>
+        <p class="text-xs text-slate-400">সর্বনিম্ন উইথড্র: <span class="text-amber-400 font-bold">১০.০০ ⭐️</span></p>
+        <div>
+          <label class="text-xs text-slate-400">উইথড্র স্টার পরিমাণ:</label>
+          <input type="number" id="withdrawAmount" placeholder="10" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl mt-1 text-sm focus:outline-none focus:border-amber-400">
+        </div>
+        <div>
+          <label class="text-xs text-slate-400">Telegram Username অথবা TON Wallet:</label>
+          <input type="text" id="walletAddress" placeholder="@username বা TON এড্রেস" class="w-full bg-slate-800 border border-slate-700 p-3 rounded-xl mt-1 text-sm focus:outline-none focus:border-amber-400">
+        </div>
+        <button onclick="submitWithdraw()" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-bold rounded-xl shadow-lg active:scale-95 transition">
+          উইথড্র সাবমিট করুন
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= BOTTOM NAVIGATION ================= -->
+  <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/90 backdrop-blur border-t border-slate-800 flex justify-around p-3 text-center text-slate-400 text-xs">
+    <button onclick="switchTab('Home')" id="navHome" class="active-nav">
+      <i class="fa-solid fa-house text-lg block mb-1"></i> হোম
+    </button>
+    <button onclick="switchTab('Tasks')" id="navTasks">
+      <i class="fa-solid fa-list-check text-lg block mb-1"></i> টাস্ক
+    </button>
+    <button onclick="switchTab('Referral')" id="navReferral">
+      <i class="fa-solid fa-users text-lg block mb-1"></i> রেফার
+    </button>
+    <button onclick="switchTab('Withdraw')" id="navWithdraw">
+      <i class="fa-solid fa-wallet text-lg block mb-1"></i> উইথড্র
+    </button>
+  </nav>
+
+  <!-- ================= FIREBASE & APP SCRIPT ================= -->
+  <script>
+    // আপনার প্রোভাইড করা কনফিগ
+    const firebaseConfig = {
+      apiKey: "AIzaSyBUJX_rEN888u9pCrSe9QBDcM2neSkUFiI",
+      authDomain: "pc-mining-f0dc9.firebaseapp.com",
+      projectId: "pc-mining-f0dc9",
+      storageBucket: "pc-mining-f0dc9.firebasestorage.app",
+      messagingSenderId: "973506100658",
+      appId: "1:973506100658:web:e158b0371a781c33f4f8ab",
+      measurementId: "G-0LJ387VMW0"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const ADMIN_TELEGRAM_ID = "8045367594";
+    const tg = window.Telegram?.WebApp;
+    if (tg) tg.expand();
+
+    // ইউজারের তথ্য
+    const urlParams = new URLSearchParams(window.location.search);
+    const startParam = urlParams.get('tgWebAppStartParam') || urlParams.get('start'); // রেফারার আইডি
+    const userId = tg?.initDataUnsafe?.user?.id?.toString() || urlParams.get('id') || "test_user_123";
+    const userFirstName = tg?.initDataUnsafe?.user?.first_name || "Guest";
+
+    let currentUserData = null;
+
+    // লোডিং ইনিশিয়ালাইজেশন
+    window.addEventListener('DOMContentLoaded', async () => {
+      document.getElementById('userName').innerText = userFirstName;
+      document.getElementById('userTelegramId').innerText = "ID: " + userId;
+
+      // এডমিন চেক
+      if (userId === ADMIN_TELEGRAM_ID) {
+        document.getElementById('adminShortcut').classList.remove('hidden');
+      }
+
+      // রেফারেল লিংক সেট
+      const botUsername = "YOUR_BOT_USERNAME"; // আপনার বটের ইউজারনেম এখানে দিন
+      document.getElementById('refLinkInput').value = `https://t.me/${botUsername}/app?startapp=${userId}`;
+
+      await loadUserData();
+    });
+
+    async function loadUserData() {
+      const userRef = db.collection('users').doc(userId);
+      const doc = await userRef.get();
+
+      if (!doc.exists) {
+        // নতুন ইউজার ডাটাবেজে তৈরি
+        currentUserData = {
+          userId: userId,
+          name: userFirstName,
+          balance: 0.00,
+          referredBy: startParam || null,
+          hasForceJoined: false,
+          referralCount: 0,
+          lastClaim: 0,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        await userRef.set(currentUserData);
+      } else {
+        currentUserData = doc.data();
+      }
+
+      // ফোর্স জয়েন চেক
+      if (currentUserData.hasForceJoined) {
+        document.getElementById('lockScreen').classList.add('hidden');
+      }
+
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById('starBalance').innerText = (currentUserData.balance || 0).toFixed(2);
+      document.getElementById('totalReferrals').innerText = `${currentUserData.referralCount || 0} জন`;
+      checkClaimTimer();
+    }
+
+    // ফোর্স সাবস্ক্রাইব ভেরিফিকেশন ও রেফারেল রিওয়ার্ড প্রদান
+    async function verifyForceJoin() {
+      // ইউজার ভেরিফাই হলো
+      await db.collection('users').doc(userId).update({ hasForceJoined: true });
+      currentUserData.hasForceJoined = true;
+
+      // রেফারার থাকলে তাকে রিওয়ার্ড দেওয়া (কঠোর শর্ত: কেবল জয়েন করলেই পাবে)
+      if (currentUserData.referredBy && !currentUserData.referralRewarded) {
+        const refUserRef = db.collection('users').doc(currentUserData.referredBy);
+        const refDoc = await refUserRef.get();
+        if (refDoc.exists) {
+          await refUserRef.update({
+            balance: firebase.firestore.FieldValue.increment(1.00), // প্রতি রেফারে ১ স্টার
+            referralCount: firebase.firestore.FieldValue.increment(1)
+          });
+          await db.collection('users').doc(userId).update({ referralRewarded: true });
+        }
+      }
+
+      document.getElementById('lockScreen').classList.add('hidden');
+      alert("সফলভাবে আনলক হয়েছে! আপনাকে স্বাগতম।");
+    }
+
+    // ডেইলি মাইনিং ক্লেইম
+    async function claimDailyStars() {
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      if (now - (currentUserData.lastClaim || 0) < oneDay) {
+        alert("আপনি অলরেডি আজকের স্টার ক্লেইম করেছেন!");
+        return;
+      }
+
+      await db.collection('users').doc(userId).update({
+        balance: firebase.firestore.FieldValue.increment(1.00),
+        lastClaim: now
+      });
+
+      currentUserData.balance = (currentUserData.balance || 0) + 1.00;
+      currentUserData.lastClaim = now;
+      updateUI();
+      alert("অভিনন্দন! +১.০০ Star যোগ হয়েছে।");
+    }
+
+    function checkClaimTimer() {
+      const now = Date.now();
+      const diff = (24 * 60 * 60 * 1000) - (now - (currentUserData.lastClaim || 0));
+      const btn = document.getElementById('claimBtn');
+      const timerText = document.getElementById('claimTimer');
+
+      if (diff > 0) {
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+        timerText.classList.remove('hidden');
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        timerText.innerText = `পরবর্তী ক্লেইম: ${hours} ঘণ্টা ${mins} মিনিট পর`;
+      } else {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+        timerText.classList.add('hidden');
+      }
+    }
+
+    // উইথড্র রিকোয়েস্ট
+    async function submitWithdraw() {
+      const amount = parseFloat(document.getElementById('withdrawAmount').value);
+      const address = document.getElementById('walletAddress').value.trim();
+
+      if (isNaN(amount) || amount < 10) return alert("সর্বনিম্ন উইথড্র ১০ স্টার!");
+      if (!address) return alert("টেলিগ্রাম ইউজারনেম বা ওয়ালেট দিন!");
+      if (amount > currentUserData.balance) return alert("পর্যাপ্ত ব্যালেন্স নেই!");
+
+      // ব্যালেন্স কাটা এবং রিকোয়েস্ট সাবমিট
+      await db.collection('users').doc(userId).update({
+        balance: firebase.firestore.FieldValue.increment(-amount)
+      });
+
+      await db.collection('withdrawals').add({
+        userId: userId,
+        name: userFirstName,
+        amount: amount,
+        address: address,
+        status: "pending",
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      currentUserData.balance -= amount;
+      updateUI();
+      document.getElementById('withdrawAmount').value = "";
+      document.getElementById('walletAddress').value = "";
+      alert("উইথড্র রিকোয়েস্ট জমা হয়েছে! এডমিন খুব দ্রুত রিভিউ করবে।");
+    }
+
+    function copyRefLink() {
+      const copyText = document.getElementById("refLinkInput");
+      copyText.select();
+      navigator.clipboard.writeText(copyText.value);
+      alert("রেফারেল লিংক কপি হয়েছে!");
+    }
+
+    // ট্যাব সুইচ
+    function switchTab(tab) {
+      ['Home', 'Tasks', 'Referral', 'Withdraw'].forEach(t => {
+        document.getElementById(`page${t}`).classList.add('hidden');
+        document.getElementById(`nav${t}`).classList.remove('active-nav');
+      });
+      document.getElementById(`page${tab}`).classList.remove('hidden');
+      document.getElementById(`nav${tab}`).classList.add('active-nav');
+    }
+  </script>
+</body>
+</html>
